@@ -1,0 +1,40 @@
+{
+  "name": "orbit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ORBIT \u2014 Own the financial system. The market as a solar system on Robinhood Chain: the Sun is the treasury, six planets are six assets, you choose the one you orbit.",
+  "scripts": {
+    "dev": "next dev --port 3571",
+    "build": "next build",
+    "start": "next start --port 3571",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "capture": "node scripts/capture.mjs",
+    "contracts:test": "npm --prefix contracts test",
+    "contracts:compile": "npm --prefix contracts run compile",
+    "logo": "node scripts/make-logo.mjs",
+    "fork:check": "npm --prefix contracts run fork:check",
+    "serve:fork": "npm --prefix contracts run serve:fork"
+  },
+  "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.11",
+    "@tanstack/react-query": "^5.102.8",
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "three": "^0.186.0",
+    "viem": "^2.56.5",
+    "wagmi": "^2.19.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "^0.186.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
