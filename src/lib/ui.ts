@@ -7,8 +7,10 @@ export type Focus = { kind: "none" } | { kind: "planet"; key: string } | { kind:
 export type UiState = {
   /** 0 → 1 while the point of light becomes the system; 1 afterwards. */
   intro: number;
-  /** Scroll progress through the home journey, 0 → 1. */
+  /** Scroll progress through the home journey, 0 → 1 — eased by the frame loop. */
   progress: number;
+  /** Where the scrollbar actually is, 0 → 1; the raw input `progress` glides toward. */
+  progressTarget: number;
   /** Key of the body under the pointer (planet:… or ghost:…). */
   hover: string | null;
   focus: Focus;
@@ -23,6 +25,7 @@ export type UiState = {
 export const uiStore = createStore<UiState>({
   intro: 0,
   progress: 0,
+  progressTarget: 0,
   hover: null,
   focus: { kind: "none" },
   reducedMotion: false,

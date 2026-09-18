@@ -65,6 +65,8 @@ const hash = (s: string) => {
   return (h >>> 0) / 4294967296;
 };
 
+const STAGE_IS_BODY = (s: Stage) => s.kind === "planet" || s.kind === "ghost";
+
 const RIM_SHADER = {
   vertex: /* glsl */ `
     varying vec3 vNormal;
@@ -126,6 +128,9 @@ export class Universe {
   private reduced = false;
   private hovered: string | null = null;
   private outer = 11.15;
+  /** The eased scroll progress the camera and the sheets follow. */
+  private progress = 0;
+  private lastProgressPush = -1;
 
   private tmp = new THREE.Vector3();
   private tmp2 = new THREE.Vector3();
@@ -461,7 +466,6 @@ export class Universe {
 
   /** Skip the intro (captures, reduced motion): the camera starts where the page wants it. */
   skipIntro() {
-    this.reduced = true;
     this.introClock = 10;
     this.snapUntil = performance.now() + 1500;
     uiStore.set({ intro: 1 });
@@ -567,6 +571,18 @@ export class Universe {
     this.viewFor(this.viewB, stages[i + 1]);
     out.pos.lerpVectors(this.viewA.pos, this.viewB.pos, f);
     out.target.lerpVectors(this.viewA.target, this.viewB.target, f);
+    // Between two stops the camera flies an arc, not a chord: it lifts and
+    // swings out from the Sun in the middle of the leg, so a trip from one
+    // side of the system to the other never cuts through the Sun or a planet.
+    const legA = STAGE_IS_BODY(stages[i]);
+    const legB = STAGE_IS_BODY(stages[i + 1]);
+    if (legA || legB) {
+      const chord = this.viewA.pos.distanceTo(this.viewB.pos);
+      const hop = Math.sin(f * Math.PI) * Math.min(7, 0.6 + chord * 0.3);
+      out.pos.y += hop * 0.7;
+      const radial = this.tmp.set(out.pos.x, 0, out.pos.z);
+      if (radial.lengthSq() > 1e-6) out.pos.addScaledVector(radial.normalize(), hop * 0.45);
+    }
     return out;
   }
 
@@ -584,14 +600,31 @@ export class Universe {
     if (this.introClock < 4) {
       if (this.introStart < 0) this.introStart = now;
       this.introClock = this.reduced ? 10 : (now - this.introStart) / 1000;
+      if (this.introClock > 4) this.introClock = 10;
       const t = Math.min(1, Math.max(0, (this.introClock - 0.35) / 3.1));
       if (t - this.lastIntroPush >= 0.04 || (t >= 1 && this.lastIntroPush < 1)) {
         this.lastIntroPush = t;
         uiStore.set({ intro: t });
       }
     }
-    const intro = this.reduced ? 1 : Math.min(1, Math.max(0, (this.introClock - 0.35) / 3.1));
+    const intro = this.reduced || this.introClock >= 4 ? 1 : Math.min(1, Math.max(0, (this.introClock - 0.35) / 3.1));
     const introE = easeInOutCubic(intro);
+
+    // scroll: glide toward where the scrollbar is. Wheel notches arrive as steps of
+    // a tenth of a viewport; a ~180 ms ease turns them into one continuous travel.
+    if (ui.progress !== this.progress && Math.abs(ui.progress - this.lastProgressPush) > 1e-6) {
+      // someone else set progress directly (a reload landing mid-page): adopt it
+      this.progress = ui.progress;
+    }
+    const gap = ui.progressTarget - this.progress;
+    if (Math.abs(gap) > 1e-5) {
+      this.progress += this.reduced ? gap : gap * damp(5.5, dt);
+      if (Math.abs(gap) < 1e-4) this.progress = ui.progressTarget;
+      if (Math.abs(this.progress - this.lastProgressPush) > 0.0008 || this.progress === ui.progressTarget) {
+        this.lastProgressPush = this.progress;
+        uiStore.set({ progress: this.progress });
+      }
+    }
 
     // clocks
     const motion = this.reduced ? 0.15 : 1;
@@ -626,7 +659,7 @@ export class Universe {
 
     // camera
     const stages = stagesFor(system);
-    this.desired(this.desiredView, ui.focus, ui.progress, stages);
+    this.desired(this.desiredView, ui.focus, this.progress, stages);
     if (intro < 1 && !this.reduced) {
       // Dolly along the wide view's own axis: the point of light is the Sun, seen from far.
       const wide = this.wideView(this.viewA);
@@ -638,7 +671,8 @@ export class Universe {
       this.camPos.copy(this.desiredView.pos);
       this.camTarget.copy(this.desiredView.target);
     } else {
-      const rate = ui.focus.kind === "none" ? 3.2 : 2.4;
+      // The scroll is already eased; the camera only needs to follow the moving bodies.
+      const rate = ui.focus.kind === "none" ? 4.5 : 2.4;
       this.camPos.lerp(this.desiredView.pos, damp(rate, dt));
       this.camTarget.lerp(this.desiredView.target, damp(rate * 1.2, dt));
     }

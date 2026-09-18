@@ -18,6 +18,11 @@ import { stagePresence, stagesFor, uiStore, useUi } from "@/lib/ui";
  * camera travels (lib/three/universe.ts reads `progress`); this component
  * only fades the words in and out. Light a planet and the scroll grows a
  * stop.
+ *
+ * The scrollbar's position is only a target: the frame loop glides
+ * `progress` toward it, so a mouse wheel's notches become one continuous
+ * travel instead of a lurch per notch — and the camera, which eases toward
+ * the eased progress, never jumps.
  */
 export function Journey() {
   const progress = useUi((s) => s.progress);
@@ -28,15 +33,20 @@ export function Journey() {
   useEffect(() => {
     uiStore.set({ focus: { kind: "none" } });
     let raf = 0;
+    const read = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      return max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+    };
     const onScroll = () => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        const max = document.documentElement.scrollHeight - window.innerHeight;
-        uiStore.set({ progress: max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0 });
+        uiStore.set({ progressTarget: read() });
       });
     };
-    onScroll();
+    // A reload deep in the page lands there at once; only later moves glide.
+    const at = read();
+    uiStore.set({ progress: at, progressTarget: at });
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => {
